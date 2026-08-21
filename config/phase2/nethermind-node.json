@@ -1,0 +1,39 @@
+{
+  "Init": {
+    "ChainSpecPath": "execution-nethermind.json",
+    "DiscoveryEnabled": false
+  },
+  "Network": {
+    "DiscoveryPort": 30303,
+    "P2PPort": 30303,
+    "LocalIp": "127.0.0.1",
+    "ExternalIp": "127.0.0.1"
+  },
+  "Sync": {
+    "FastSync": false,
+    "SnapSync": false
+  },
+  "JsonRpc": {
+    "Enabled": true,
+    "Host": "127.0.0.1",
+    "Port": 8545,
+    "EngineHost": "127.0.0.1",
+    "EnginePort": 8551,
+    "EnabledModules": ["Eth", "Net", "Web3", "Subscribe"]
+  },
+  "Mining": {
+    "Enabled": true
+  },
+  "Blocks": {
+    "SecondsPerSlot": 2,
+    "TargetBlockGasLimit": 30000000,
+    "ExtraData": "Sepehr-P2"
+  },
+  "HealthChecks": {
+    "Enabled": false
+  },
+  "Metrics": {
+    "Enabled": false,
+    "NodeName": "Sepehr Phase 2"
+  }
+}

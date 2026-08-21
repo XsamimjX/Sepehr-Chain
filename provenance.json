@@ -11,7 +11,8 @@
             "commitContainsGpgSignature": true,
             "sdkManifestMinimum": "10.0.100",
             "sdkUsed": "10.0.400",
-            "patch": "patches/nethermind-1.39.2-ethash-production.patch"
+            "patch": "patches/nethermind-1.39.2-ethash-production.patch",
+            "patchSha256": "8694b997347832d4eaf97899cd0ae358fd138e369fef1812699554d04560f70d"
         },
         "consensus": {
             "name": "Prysm",
@@ -35,5 +36,6 @@
         "Upstream source checkouts and generated build outputs are intentionally excluded from the application repository."
         ,"Go 1.27.0 is not the go.mod-declared toolchain and failed the Windows runtime compatibility gate. No BLS-initializer bypass was applied."
         ,"The exact go.mod-declared Go 1.26.5 Linux toolchain passed the focused Prysm compatibility gate."
+        ,"Calibrated Phase 2 genesis.ssz SHA-256 is 6bfaef230b8aad2d25ffd7eecbcecbcb1324a2968ccd6c3ead3a83d5d5f1b94f; its 256 generated validator keys are excluded from Git."
     ]
 }

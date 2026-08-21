@@ -1,0 +1,9 @@
+{
+  "total": 256,
+  "hosts": [
+    { "host": "node-1", "startIndex": 0, "count": 64 },
+    { "host": "node-2", "startIndex": 64, "count": 64 },
+    { "host": "node-3", "startIndex": 128, "count": 64 },
+    { "host": "node-4", "startIndex": 192, "count": 64 }
+  ]
+}

@@ -1,0 +1,59 @@
+diff --git a/src/Nethermind/Nethermind.Consensus.Ethash/EthashBlockProducerFactory.cs b/src/Nethermind/Nethermind.Consensus.Ethash/EthashBlockProducerFactory.cs
+index a80646e4..84166d4d 100644
+--- a/src/Nethermind/Nethermind.Consensus.Ethash/EthashBlockProducerFactory.cs
++++ b/src/Nethermind/Nethermind.Consensus.Ethash/EthashBlockProducerFactory.cs
+@@ -1,16 +1,50 @@
+ // SPDX-FileCopyrightText: 2022 Demerzel Solutions Limited
+ // SPDX-License-Identifier: LGPL-3.0-only
+ 
++using System;
+ using Nethermind.Blockchain;
++using Nethermind.Config;
+ using Nethermind.Consensus.Producers;
++using Nethermind.Core;
++using Nethermind.Core.Specs;
++using Nethermind.Logging;
+ 
+ namespace Nethermind.Consensus.Ethash;
+ 
+-internal sealed class EthashBlockProducerFactory(IManualBlockProductionTrigger manualBlockProductionTrigger, IBlockTree blockTree)
++internal sealed class EthashBlockProducerFactory(
++    IBlockProducerEnvFactory blockProducerEnvFactory,
++    IBlockTree blockTree,
++    ISealer sealer,
++    IGasLimitCalculator gasLimitCalculator,
++    ITimestamper timestamper,
++    ISpecProvider specProvider,
++    IBlocksConfig blocksConfig,
++    IManualBlockProductionTrigger manualBlockProductionTrigger,
++    ILogManager logManager)
+     : IBlockProducerFactory, IBlockProducerRunnerFactory
+ {
+-    public IBlockProducer InitBlockProducer() => null;
++    public IBlockProducer InitBlockProducer()
++    {
++        IBlockProducerEnv env = blockProducerEnvFactory.CreatePersistent();
+ 
+-    public IBlockProducerRunner InitBlockProducerRunner(IBlockProducer blockProducer) =>
+-        new StandardBlockProducerRunner(manualBlockProductionTrigger, blockTree, blockProducer);
++        return new MinedBlockProducer(
++            env.TxSource,
++            env.ChainProcessor,
++            sealer,
++            blockTree,
++            env.ReadOnlyStateProvider,
++            gasLimitCalculator,
++            timestamper,
++            specProvider,
++            logManager,
++            blocksConfig);
++    }
++
++    public IBlockProducerRunner InitBlockProducerRunner(IBlockProducer blockProducer)
++    {
++        TimeSpan interval = TimeSpan.FromSeconds(Math.Max(1, blocksConfig.SecondsPerSlot));
++        IBlockProductionTrigger trigger = new BuildBlocksRegularly(interval).Or(manualBlockProductionTrigger);
++
++        return new StandardBlockProducerRunner(trigger, blockTree, blockProducer);
++    }
+ }

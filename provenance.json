@@ -1,0 +1,32 @@
+{
+    "schema": "sepehr-client-provenance/v1",
+    "generatedAt": "2026-08-21T00:00:00Z",
+    "clients": {
+        "execution": {
+            "name": "Nethermind",
+            "repository": "https://github.com/NethermindEth/nethermind.git",
+            "tag": "1.39.2",
+            "commit": "6568910591e4618dc49d54285b6213c3753d7243",
+            "tree": "ee56b947f5139c1a312f1cc874601c4692d53915",
+            "commitContainsGpgSignature": true,
+            "sdkManifestMinimum": "10.0.100",
+            "sdkUsed": "10.0.400",
+            "patch": "patches/nethermind-1.39.2-ethash-production.patch"
+        },
+        "consensus": {
+            "name": "Prysm",
+            "repository": "https://github.com/OffchainLabs/prysm.git",
+            "tag": "v7.1.8",
+            "commit": "51b5a75ebbadf05af22bd2601b5baf7a9e99b66d",
+            "goManifest": "1.26.5",
+            "commitContainsGpgSignature": true,
+            "requiredWindowsArchiveSha256": "97e6b2a833b6d89f9ff17d25419ac0a7e3b482a044e9ab18cdef834bd834fd38",
+            "toolchainAcquisition": "BLOCKED: official go.dev and dl.google.com archive endpoints returned HTTP 404 on 2026-08-21"
+        }
+    },
+    "notes": [
+        "Both release tags resolve directly to commits rather than annotated tag objects.",
+        "A commit-embedded signature is recorded separately from cryptographic trust verification.",
+        "Upstream source checkouts and generated build outputs are intentionally excluded from the application repository."
+    ]
+}

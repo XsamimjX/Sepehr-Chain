@@ -23,13 +23,17 @@
             "requiredWindowsArchiveSha256": "97e6b2a833b6d89f9ff17d25419ac0a7e3b482a044e9ab18cdef834bd834fd38",
             "toolchainAcquisition": "Go 1.26.5 official endpoints returned HTTP 404 on 2026-08-21",
             "testedToolchainDeviation": "Go 1.27.0 windows/amd64 compiled both commands, but cmd/beacon-chain and cmd/validator tests and binaries panic in crypto/bls/herumi.Init with ERR Init curve=5",
-            "linuxValidation": "BLOCKED: WSL Ubuntu has no Go toolchain and the official go1.27.0.linux-amd64.tar.gz endpoint returned HTTP 404 on 2026-08-21"
+            "requiredLinuxToolchainUsed": "go1.26.5 linux/amd64",
+            "linuxValidation": "PASS: cmd/beacon-chain and cmd/validator focused tests and --version startup checks passed in WSL Ubuntu on 2026-08-22",
+            "beaconBinarySha256": "00bfb08fdb7a41618a4bb53664f5cc46d0855c34a3004faeb172956d6d358272",
+            "validatorBinarySha256": "08c85a6271fd2bbdc4dd456bea3b4908ac13a2a009345c1810876deea7944cdf"
         }
     },
     "notes": [
         "Both release tags resolve directly to commits rather than annotated tag objects.",
         "A commit-embedded signature is recorded separately from cryptographic trust verification.",
         "Upstream source checkouts and generated build outputs are intentionally excluded from the application repository."
-        ,"Go 1.27.0 is not the go.mod-declared toolchain and failed the available Windows runtime compatibility gate. No BLS-initializer bypass was applied."
+        ,"Go 1.27.0 is not the go.mod-declared toolchain and failed the Windows runtime compatibility gate. No BLS-initializer bypass was applied."
+        ,"The exact go.mod-declared Go 1.26.5 Linux toolchain passed the focused Prysm compatibility gate."
     ]
 }

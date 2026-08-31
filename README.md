@@ -1,4 +1,8 @@
-# Sepehr Chain
+# Sepehr Chain | زنجیره سپهر
+
+[English](#english) · [فارسی](#فارسی)
+
+## English
 
 This independent repository contains the Sepehr execution/consensus client configuration, client patches, transition tooling, and reproducible evidence.
 
@@ -53,3 +57,65 @@ Do not use that host size for an archive node, public RPC service, Sepehrbin ind
 ## Safety
 
 Generated client source checkouts, binaries, node databases, validator wallets, JWT files, faucet secrets, and other credentials are ignored. Check evidence JSON before publishing it. The existing `scripts/phase2/` harness remains a single-machine research/recovery harness and must not be exposed as a public deployment.
+
+## Dependencies and source setup
+
+- Ubuntu Linux or WSL2 for the verified build path.
+- Git, Python 3, Bash, `curl`, `jq`, `openssl`, and standard build tools.
+- .NET SDK 10.0.100 or newer for pinned Nethermind 1.39.2; the recorded build used 10.0.400.
+- Go matching the pinned Prysm `go.mod`. Use the exact compatible toolchain recorded in `provenance.json`; a newer Go release is not automatically compatible.
+- Foundry `cast` for the operator faucet command.
+
+Execution and consensus clients retain their required native databases. PostgreSQL is for Raygir, a future public faucet service, and Sepehrbin—not for the node database.
+
+Clone this independent repository and initialize upstream sources using its pinned commits, provenance, and patches. Do not build a canonical network from an unpinned “latest” client. Verify commit signatures and the checksums of every patch, binary, configuration, and genesis artifact before distribution.
+
+Configuration validation:
+
+```bash
+python3 scripts/testnet/verify-network.py
+bash -n scripts/testnet/fund-wallet.sh
+```
+
+The current `scripts/phase2/` commands are research harnesses, not four-VPS installers. Before persistent launch, generate real bootnode identities, an offline faucet address, 256 non-overlapping validator keys, `execution-nethermind.json`, `genesis.ssz`, and a signed artifact manifest. Every host receives identical public genesis artifacts but distinct node secrets and 64 distinct validator keys.
+
+---
+
+## فارسی
+
+زنجیره سپهر مخزن مستقل کلاینت اجرایی/اجماع، وصله‌های پژوهشی، تنظیمات گذار اثبات کار به اثبات سهام و شواهد قابل‌بازسازی است. تست‌نت سپهر مانند یک شبکه پایدار و اصلی رفتار می‌کند، اما همه دارایی‌های آن فاقد ارزش و غیرقابل بازخرید هستند؛ این شبکه مین‌نت سپهر نیست.
+
+### ارتباط همتاها
+
+Nethermind با رکوردهای عمومی `enode` و discv4/discv5 همتاها را پیدا می‌کند. Prysm نیز از ENRهای bootstrap و discv5/libp2p استفاده می‌کند. WireGuard برای P2P الزامی نیست و peer ثابت فقط مسیر بازیابی است.
+
+TCP و UDP پورت `30303` برای execution،‏ TCP پورت `13000` و UDP پورت `12000` برای consensus باید باز باشند. Engine API روی `8551`،‏ API اعتبارسنج، JWT،‏ keystore و فایل رمز هرگز نباید عمومی شوند.
+
+### پیش‌نیازها
+
+- Ubuntu Linux یا WSL2 برای مسیر ساخت آزموده‌شده.
+- Git،‏ Python 3،‏ Bash،‏ `curl`،‏ `jq`،‏ `openssl` و ابزارهای ساخت.
+- .NET SDK حداقل 10.0.100 برای Nethermind پین‌شده؛ ساخت ثبت‌شده با 10.0.400 انجام شده است.
+- نسخه Go سازگار با `go.mod` نسخه پین‌شده Prysm و اطلاعات `provenance.json`؛ نسخه جدیدتر الزاماً سازگار نیست.
+- ابزار `cast` از Foundry برای انتقال faucet.
+
+گره‌ها پایگاه‌داده داخلی لازم کلاینت را دارند و از PostgreSQL استفاده نمی‌کنند. رای‌گیر، faucet عمومی آینده و سپهربین باید PostgreSQL مستقل داشته باشند.
+
+این مخزن را جداگانه clone کنید و upstreamها را فقط از commitهای ثبت‌شده و با وصله‌های همین مخزن بسازید. برای شبکه canonical از نسخه `latest` استفاده نکنید. امضا و checksum تمام commitها، وصله‌ها، باینری‌ها، تنظیمات و فایل‌های genesis را کنترل کنید.
+
+```bash
+python3 scripts/testnet/verify-network.py
+bash -n scripts/testnet/fund-wallet.sh
+```
+
+### ساخت شبکه و faucet
+
+حساب faucet را آفلاین بسازید و فقط آدرس عمومی آن را در genesis قرار دهید. با `scripts/testnet/render-network.py` و حداقل دو `enode` واقعی فایل `execution-nethermind.json` را بسازید. پس از شروع شبکه این فایل تغییرپذیر نیست. سپس از 256 کلید واقعی و بدون هم‌پوشانی، فایل `genesis.ssz` نهایی را بسازید.
+
+Genesis یک میلیارد SEP آزمایشی و بدون ارزش به faucet اختصاص می‌دهد. `scripts/testnet/fund-wallet.sh` مسیر پرداخت اپراتوری است و کلید خصوصی را در آرگومان قرار نمی‌دهد. faucet عمومی مشابه Sepolia هنوز به محدودیت آدرس/IP در PostgreSQL، جداسازی signer، کنترل سوءاستفاده، مانیتورینگ و آزمون نیاز دارد.
+
+### منابع و امنیت
+
+پروفایل 2 هسته، 4 گیگابایت رم و 30 گیگابایت NVMe فقط برای گره کوچک، pruned، بدون archive و بدون RPC عمومی آزمایشی است. پذیرش آن منوط به آزمون sync، گذار، رشد دیسک، pruning و soak هفت‌روزه روی همان VPS است. سپهربین، PostgreSQL، RPC عمومی یا archive را روی این اندازه اجرا نکنید.
+
+هیچ کلید، JWT، رمز، کیف اعتبارسنج، slashing database یا `.env` را commit نکنید. هر میزبان باید genesis عمومی یکسان، ولی هویت گره و 64 کلید اعتبارسنج منحصربه‌فرد داشته باشد.

@@ -1,0 +1,144 @@
+diff --git a/beacon-chain/p2p/peers/status.go b/beacon-chain/p2p/peers/status.go
+index 17e3593..a9068bf 100644
+--- a/beacon-chain/p2p/peers/status.go
++++ b/beacon-chain/p2p/peers/status.go
+@@ -754,8 +754,9 @@ func (p *Status) BestFinalized(ourFinalized primitives.Epoch) (primitives.Epoch,
+ 	return winner, pids
+ }
+ 
+-// BestNonFinalized returns the highest known epoch, higher than ours,
+-// and is shared by at least minPeers.
++// BestNonFinalized returns the highest known epoch, at least as high as ours,
++// and is shared by at least minPeers. Equal-head peers are required for small
++// private networks to recover when every beacon node restarts at the same slot.
+ func (p *Status) BestNonFinalized(minPeers int, ourHeadEpoch primitives.Epoch) (primitives.Epoch, []peer.ID) {
+ 	connected := p.Connected()
+ 	slotsPerEpoch := params.BeaconConfig().SlotsPerEpoch
+@@ -774,8 +775,8 @@ func (p *Status) BestNonFinalized(minPeers int, ourHeadEpoch primitives.Epoch) (
+ 	for _, pid := range connected {
+ 		peerChainState, err := p.ChainState(pid)
+ 		// Skip if the peer's head epoch is not defined, or if the peer's head slot is
+-		// lower or equal than ours.
+-		if err != nil || peerChainState == nil || peerChainState.HeadSlot <= ourHeadSlot {
++		// lower than ours.
++		if err != nil || peerChainState == nil || peerChainState.HeadSlot < ourHeadSlot {
+ 			continue
+ 		}
+ 
+diff --git a/beacon-chain/p2p/peers/status_test.go b/beacon-chain/p2p/peers/status_test.go
+index d3166b7..92d8b3d 100644
+--- a/beacon-chain/p2p/peers/status_test.go
++++ b/beacon-chain/p2p/peers/status_test.go
+@@ -1080,6 +1080,28 @@ func TestStatus_BestNonFinalized(t *testing.T) {
+ 	assert.Equal(t, 3, len(pids), "Unexpected number of peers")
+ }
+ 
++func TestStatus_BestNonFinalized_IncludesEqualHeadPeers(t *testing.T) {
++	p := peers.NewStatus(t.Context(), &peers.StatusConfig{
++		PeerLimit: 30,
++		ScorerParams: &scorers.Config{
++			BadResponsesScorerConfig: &scorers.BadResponsesScorerConfig{Threshold: 2},
++		},
++	})
++
++	headEpoch := primitives.Epoch(5)
++	headSlot := params.BeaconConfig().SlotsPerEpoch.Mul(uint64(headEpoch))
++	for i := 0; i < 3; i++ {
++		pid := peer.ID(rune(i))
++		p.Add(new(enr.Record), pid, nil, network.DirOutbound)
++		p.SetConnectionState(pid, peers.Connected)
++		p.SetChainState(pid, &pb.StatusV2{HeadSlot: headSlot})
++	}
++
++	retEpoch, pids := p.BestNonFinalized(3, headEpoch)
++	assert.Equal(t, headEpoch, retEpoch)
++	assert.Equal(t, 3, len(pids))
++}
++
+ func TestStatus_CurrentEpoch(t *testing.T) {
+ 	maxBadResponses := 2
+ 	p := peers.NewStatus(t.Context(), &peers.StatusConfig{
+diff --git a/validator/client/beacon-api/duties.go b/validator/client/beacon-api/duties.go
+index de14117..63a14e0 100644
+--- a/validator/client/beacon-api/duties.go
++++ b/validator/client/beacon-api/duties.go
+@@ -71,8 +71,12 @@ func (c *beaconApiValidatorClient) duties(ctx context.Context, in *ethpb.DutiesR
+ 	if currEpochErr := <-errCh; currEpochErr != nil {
+ 		return nil, currEpochErr
+ 	}
++	// At an epoch boundary the beacon head can legitimately remain on the final
++	// slot of the previous epoch until a validator proposes the first block. In
++	// that window the REST API can serve current duties but rejects the lookahead
++	// epoch. Keep the current duties so the first proposal can advance the head.
+ 	if nextEpochErr != nil {
+-		return nil, errors.Wrapf(nextEpochErr, "failed to get duties for next epoch `%d`", in.Epoch+1)
++		nextEpochDuties = &ethpb.ValidatorDutiesContainer{}
+ 	}
+ 
+ 	return &ethpb.ValidatorDutiesContainer{
+diff --git a/validator/client/beacon-api/duties_test.go b/validator/client/beacon-api/duties_test.go
+index daf9bba..ed175fc 100644
+--- a/validator/client/beacon-api/duties_test.go
++++ b/validator/client/beacon-api/duties_test.go
+@@ -1258,6 +1258,61 @@ func TestGetDuties_GetStateValidatorsFailed(t *testing.T) {
+ 	assert.ErrorContains(t, "foo error", err)
+ }
+ 
++func TestGetDuties_NextEpochFailureKeepsCurrentDuties(t *testing.T) {
++	ctrl := gomock.NewController(t)
++	defer ctrl.Finish()
++
++	ctx := t.Context()
++	pubkey := []byte{1, 2, 3}
++	stateValidatorsProvider := mock.NewMockStateValidatorsProvider(ctrl)
++	stateValidatorsProvider.EXPECT().StateValidators(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
++		&structs.GetValidatorsResponse{Data: []*structs.ValidatorContainer{{
++			Index:  "0",
++			Status: "active_ongoing",
++			Validator: &structs.Validator{
++				Pubkey: hexutil.Encode(pubkey),
++			},
++		}}},
++		nil,
++	)
++
++	dutiesProvider := mock.NewMockdutiesProvider(ctrl)
++	dutiesProvider.EXPECT().AttesterDuties(ctx, primitives.Epoch(1), gomock.Any()).Return(
++		&structs.GetAttesterDutiesResponse{
++			DependentRoot: "0x0000000000000000000000000000000000000000000000000000000000000000",
++			Data: []*structs.AttesterDuty{{
++				Pubkey:                  hexutil.Encode(pubkey),
++				ValidatorIndex:          "0",
++				CommitteeIndex:          "0",
++				CommitteeLength:         "1",
++				ValidatorCommitteeIndex: "0",
++				CommitteesAtSlot:        "1",
++				Slot:                    "8",
++			}},
++		}, nil,
++	)
++	dutiesProvider.EXPECT().AttesterDuties(ctx, primitives.Epoch(2), gomock.Any()).Return(nil, errors.New("head has not crossed the boundary"))
++	dutiesProvider.EXPECT().ProposerDuties(ctx, primitives.Epoch(1)).Return(
++		&structs.GetProposerDutiesResponse{
++			DependentRoot: "0x0000000000000000000000000000000000000000000000000000000000000000",
++			Data:          []*structs.ProposerDuty{},
++		}, nil,
++	)
++	dutiesProvider.EXPECT().ProposerDuties(ctx, primitives.Epoch(2)).Return(nil, errors.New("head has not crossed the boundary"))
++	dutiesProvider.EXPECT().SyncDuties(ctx, gomock.Any(), gomock.Any()).Return([]*structs.SyncCommitteeDuty{}, nil).AnyTimes()
++	dutiesProvider.EXPECT().Committees(ctx, gomock.Any()).Return([]*structs.Committee{}, nil).AnyTimes()
++
++	validatorClient := &beaconApiValidatorClient{
++		stateValidatorsProvider: stateValidatorsProvider,
++		dutiesProvider:          dutiesProvider,
++	}
++
++	duties, err := validatorClient.duties(ctx, &ethpb.DutiesRequest{Epoch: 1, PublicKeys: [][]byte{pubkey}})
++	require.NoError(t, err)
++	require.NotEmpty(t, duties.CurrentEpochDuties)
++	require.Equal(t, 0, len(duties.NextEpochDuties))
++}
++
+ func TestGetDuties_GetDutiesForEpochFailed(t *testing.T) {
+ 	ctrl := gomock.NewController(t)
+ 	defer ctrl.Finish()

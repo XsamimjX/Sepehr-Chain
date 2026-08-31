@@ -11,14 +11,14 @@
     "istanbulBlock": 0,
     "berlinBlock": 0,
     "londonBlock": 0,
-    "terminalTotalDifficulty": 270336,
+    "terminalTotalDifficulty": 33792,
     "terminalTotalDifficultyPassed": false
   },
   "nonce": "0x0000000000000000",
   "timestamp": "0x65920080",
   "extraData": "0x5365706568722050686173652032",
   "gasLimit": "0x1c9c380",
-  "difficulty": "0x2000",
+  "difficulty": "0x400",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x0000000000000000000000000000000000000000",
   "alloc": {

@@ -1,6 +1,12 @@
 {
     "schema": "sepehr-client-provenance/v1",
-    "generatedAt": "2026-08-21T00:00:00Z",
+    "generatedAt": "2026-08-23T00:04:46Z",
+    "commitSignatureVerification": {
+        "keySource": "https://github.com/web-flow.gpg",
+        "fingerprint": "968479A1AFF927E37D1A566BB5690EEEBB952194",
+        "cryptographicResult": "GOOD_SIGNATURE",
+        "ownerTrust": "UNKNOWN"
+    },
     "clients": {
         "execution": {
             "name": "Nethermind",
@@ -12,7 +18,15 @@
             "sdkManifestMinimum": "10.0.100",
             "sdkUsed": "10.0.400",
             "patch": "patches/nethermind-1.39.2-ethash-production.patch",
-            "patchSha256": "8694b997347832d4eaf97899cd0ae358fd138e369fef1812699554d04560f70d"
+            "patchSha256": "700e0251860a9f3eed500731ddabb3bcd6d0a557ad26d430e574348fd75f72f7",
+            "patchApplyCheck": "PASS: forward against pinned clean commit and reverse against patched source",
+            "focusedTests": "PASS: payload cache/import recovery (2 cases) and explicit post-TTD PoW-header rejection (1 case)",
+            "mldsa65Patch": "patches/nethermind-1.39.2-mldsa65-precompile.patch",
+            "mldsa65PatchSha256": "a146710843603eb0d2a015d8ed22d361923d061ae578ae8c9d9206e5d76717ce",
+            "mldsa65PatchApplyCheck": "PASS: forward and reverse against pinned clean commit",
+            "mldsa65FocusedTests": "PASS: 3 cases covering real signature verification, tampering, malformed lengths, fixed gas, and timing calibration",
+            "mldsa65Benchmark": "1.499 ms average over 25 verifications after clean Release rebuild; fixed gas 250000; input 5293 bytes",
+            "linuxBinarySha256": "c6769a8421640c1dbbb3cbaf311dfeafdea1153d209d9d5bdbab2a645b30ddba"
         },
         "consensus": {
             "name": "Prysm",
@@ -26,16 +40,23 @@
             "testedToolchainDeviation": "Go 1.27.0 windows/amd64 compiled both commands, but cmd/beacon-chain and cmd/validator tests and binaries panic in crypto/bls/herumi.Init with ERR Init curve=5",
             "requiredLinuxToolchainUsed": "go1.26.5 linux/amd64",
             "linuxValidation": "PASS: cmd/beacon-chain and cmd/validator focused tests and --version startup checks passed in WSL Ubuntu on 2026-08-22",
+            "recoveryPatch": "patches/prysm-7.1.8-equal-head-recovery.patch",
+            "recoveryPatchSha256": "a0d3e1e261921c8f8932d5b1447c561d26f5e8124748aa5e946fd41cdf21fdf9",
+            "recoveryPatchValidation": "PASS: forward/reverse patch checks and go test ./beacon-chain/p2p/peers ./validator/client/beacon-api under go1.26.5 linux/amd64 on 2026-08-23",
+            "recoveryBeaconBinarySha256": "d292db5644d7340c8996f6b367953c07ec55a40249baa1bbbbe594bc9b4934a",
             "beaconBinarySha256": "00bfb08fdb7a41618a4bb53664f5cc46d0855c34a3004faeb172956d6d358272",
-            "validatorBinarySha256": "08c85a6271fd2bbdc4dd456bea3b4908ac13a2a009345c1810876deea7944cdf"
+            "validatorBinarySha256": "08c85a6271fd2bbdc4dd456bea3b4908ac13a2a009345c1810876deea7944cdf",
+            "recoveryValidatorBinarySha256": "595aa0034e8da9326390aa0a88e62ba0a3bc7e170a7b4896b7f19ea6c95a2001"
         }
     },
     "notes": [
         "Both release tags resolve directly to commits rather than annotated tag objects.",
-        "A commit-embedded signature is recorded separately from cryptographic trust verification.",
+        "Both pinned commits have a good cryptographic signature from GitHub's published web-flow key; local owner trust remains unknown and is not overstated.",
         "Upstream source checkouts and generated build outputs are intentionally excluded from the application repository."
         ,"Go 1.27.0 is not the go.mod-declared toolchain and failed the Windows runtime compatibility gate. No BLS-initializer bypass was applied."
         ,"The exact go.mod-declared Go 1.26.5 Linux toolchain passed the focused Prysm compatibility gate."
-        ,"Calibrated Phase 2 genesis.ssz SHA-256 is 6bfaef230b8aad2d25ffd7eecbcecbcb1324a2968ccd6c3ead3a83d5d5f1b94f; its 256 generated validator keys are excluded from Git."
+        ,"The ML-DSA-65 verifier is a Sepehr-specific experimental precompile, not an Ethereum standard; its fixed gas schedule requires independent multi-platform benchmarking before a public network."
+        ,"The experimental Prysm recovery patch admits equal-head peers after a simultaneous private-network restart and preserves current-epoch duties if next-epoch lookahead temporarily fails at a boundary."
+        ,"Each clean run generates a fresh genesis time, so run-specific genesis.ssz hashes are evidence rather than one falsely fixed hash; all runs use the same committed consensus parameters and the same four disjoint 64-validator ranges. Generated validator keys are excluded from Git."
     ]
 }

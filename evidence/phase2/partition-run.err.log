@@ -1,0 +1,6 @@
+time="2026-08-23T03:16:55+03:30" level=info msg="Specified a chain config file: /mnt/d/Projects/SEPEHR/sepehr-chain/config/phase2/consensus.yaml" package=cmd/prysmctl/testnet
+time="2026-08-23T03:16:56+03:30" level=info msg="No genesis time specified, defaulting to now()" package=cmd/prysmctl/testnet
+time="2026-08-23T03:16:56+03:30" level=info msg="Delaying genesis 1787442416 by 60 seconds" package=cmd/prysmctl/testnet
+time="2026-08-23T03:16:56+03:30" level=info msg="Genesis time is 1787442476" package=cmd/prysmctl/testnet
+time="2026-08-23T03:16:56+03:30" level=info msg="Done writing genesis state to /home/mmd/sepehr-phase2-partition/consensus-genesis/genesis.ssz" package=cmd/prysmctl/testnet
+time="2026-08-23T03:16:56+03:30" level=info msg="Command completed" package=cmd/prysmctl/testnet

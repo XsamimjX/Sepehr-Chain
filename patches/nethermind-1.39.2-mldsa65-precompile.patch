@@ -1,0 +1,329 @@
+diff --git a/src/Nethermind/Nethermind.Blockchain/EthereumPrecompileProvider.cs b/src/Nethermind/Nethermind.Blockchain/EthereumPrecompileProvider.cs
+index 583406b3..49428c91 100644
+--- a/src/Nethermind/Nethermind.Blockchain/EthereumPrecompileProvider.cs
++++ b/src/Nethermind/Nethermind.Blockchain/EthereumPrecompileProvider.cs
+@@ -39,6 +39,7 @@ public class EthereumPrecompileProvider() : IPrecompileProvider
+             [KzgPointEvaluationPrecompile.Address] = new(KzgPointEvaluationPrecompile.Instance),
+ 
+             [SecP256r1Precompile.Address] = new(SecP256r1Precompile.Instance),
++            [Mldsa65Precompile.Address] = new(Mldsa65Precompile.Instance),
+         }.ToFrozenDictionary();
+     }
+ 
+diff --git a/src/Nethermind/Nethermind.Core/Precompiles/PrecompiledAddresses.cs b/src/Nethermind/Nethermind.Core/Precompiles/PrecompiledAddresses.cs
+index d05b5915..21427300 100644
+--- a/src/Nethermind/Nethermind.Core/Precompiles/PrecompiledAddresses.cs
++++ b/src/Nethermind/Nethermind.Core/Precompiles/PrecompiledAddresses.cs
+@@ -26,4 +26,5 @@ public static class PrecompiledAddresses
+     public static readonly AddressAsKey Bls12381FpToG1 = Address.FromNumber(0x10);
+     public static readonly AddressAsKey Bls12381Fp2ToG2 = Address.FromNumber(0x11);
+     public static readonly AddressAsKey P256Verify = Address.FromNumber(0x0100);
++    public static readonly AddressAsKey Mldsa65Verify = Address.FromNumber(0x0101);
+ }
+diff --git a/src/Nethermind/Nethermind.Core/Specs/IReleaseSpec.cs b/src/Nethermind/Nethermind.Core/Specs/IReleaseSpec.cs
+index de720176..4374e765 100644
+--- a/src/Nethermind/Nethermind.Core/Specs/IReleaseSpec.cs
++++ b/src/Nethermind/Nethermind.Core/Specs/IReleaseSpec.cs
+@@ -346,6 +346,7 @@ namespace Nethermind.Core.Specs
+         /// </summary>
+         bool IsRip7212Enabled { get; }
+         bool IsEip7951Enabled { get; }
++        bool IsMldsa65Enabled { get; }
+ 
+         /// <summary>
+         ///  Increase call data cost
+diff --git a/src/Nethermind/Nethermind.Core/Specs/ReleaseSpecDecorator.cs b/src/Nethermind/Nethermind.Core/Specs/ReleaseSpecDecorator.cs
+index 1a695e89..74ce596f 100644
+--- a/src/Nethermind/Nethermind.Core/Specs/ReleaseSpecDecorator.cs
++++ b/src/Nethermind/Nethermind.Core/Specs/ReleaseSpecDecorator.cs
+@@ -88,6 +88,7 @@ public class ReleaseSpecDecorator(IReleaseSpec spec) : IReleaseSpec
+     public virtual bool IsEip7934Enabled => spec.IsEip7934Enabled;
+     public virtual int Eip7934MaxRlpBlockSize => spec.Eip7934MaxRlpBlockSize;
+     public virtual bool IsEip7951Enabled => spec.IsEip7951Enabled;
++    public virtual bool IsMldsa65Enabled => spec.IsMldsa65Enabled;
+     public virtual bool IsRip7212Enabled => spec.IsRip7212Enabled;
+     public virtual bool IsEip7623Enabled => spec.IsEip7623Enabled;
+     public virtual bool IsEip7976Enabled => spec.IsEip7976Enabled;
+diff --git a/src/Nethermind/Nethermind.Evm.Precompiles/Extensions.cs b/src/Nethermind/Nethermind.Evm.Precompiles/Extensions.cs
+index 1c3cee06..94fff6a4 100644
+--- a/src/Nethermind/Nethermind.Evm.Precompiles/Extensions.cs
++++ b/src/Nethermind/Nethermind.Evm.Precompiles/Extensions.cs
+@@ -56,6 +56,11 @@ public static class Extensions
+             AddPrecompile<SecP256r1Precompile>();
+         }
+ 
++        if (spec.IsMldsa65Enabled)
++        {
++            AddPrecompile<Mldsa65Precompile>();
++        }
++
+         return precompiles;
+ 
+         void AddPrecompile<T>() where T : IPrecompile<T> => precompiles[T.Name] = T.Address;
+diff --git a/src/Nethermind/Nethermind.Evm.Precompiles/Nethermind.Evm.Precompiles.csproj b/src/Nethermind/Nethermind.Evm.Precompiles/Nethermind.Evm.Precompiles.csproj
+index 1d47ad98..520cc6d2 100644
+--- a/src/Nethermind/Nethermind.Evm.Precompiles/Nethermind.Evm.Precompiles.csproj
++++ b/src/Nethermind/Nethermind.Evm.Precompiles/Nethermind.Evm.Precompiles.csproj
+@@ -17,6 +17,7 @@
+     <PackageReference Include="Nethermind.Crypto.SecP256r1" />
+     <PackageReference Include="Nethermind.GmpBindings" />
+     <PackageReference Include="Nethermind.MclBindings" />
++    <PackageReference Include="BouncyCastle.Cryptography" Aliases="BouncyCastle" />
+   </ItemGroup>
+ 
+ </Project>
+diff --git a/src/Nethermind/Nethermind.Evm.Test/Nethermind.Evm.Test.csproj b/src/Nethermind/Nethermind.Evm.Test/Nethermind.Evm.Test.csproj
+index 47178d64..e34370a8 100644
+--- a/src/Nethermind/Nethermind.Evm.Test/Nethermind.Evm.Test.csproj
++++ b/src/Nethermind/Nethermind.Evm.Test/Nethermind.Evm.Test.csproj
+@@ -16,6 +16,7 @@
+     <PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" />
+     <PackageReference Include="NSubstitute" />
+     <PackageReference Include="Testably.Abstractions.Testing" />
++    <PackageReference Include="BouncyCastle.Cryptography" Aliases="BouncyCastle" />
+   </ItemGroup>
+   <ItemGroup>
+     <ProjectReference Include="..\Nethermind.Blockchain\Nethermind.Blockchain.csproj" />
+diff --git a/src/Nethermind/Nethermind.Specs.Test/OverridableReleaseSpec.cs b/src/Nethermind/Nethermind.Specs.Test/OverridableReleaseSpec.cs
+index 5dc00a3d..35491c1e 100644
+--- a/src/Nethermind/Nethermind.Specs.Test/OverridableReleaseSpec.cs
++++ b/src/Nethermind/Nethermind.Specs.Test/OverridableReleaseSpec.cs
+@@ -65,6 +65,7 @@ namespace Nethermind.Specs.Test
+         public bool IsEip3541Enabled { get; set; } = spec.IsEip3541Enabled;
+         public bool IsEip4844Enabled { get; set; } = spec.IsEip4844Enabled;
+         public bool IsEip7951Enabled { get; set; } = spec.IsEip7951Enabled;
++        public bool IsMldsa65Enabled { get; set; } = spec.IsMldsa65Enabled;
+         public bool IsRip7212Enabled { get; set; } = spec.IsRip7212Enabled;
+         public bool IsEip7623Enabled { get; set; } = spec.IsEip7623Enabled;
+         public bool IsEip7976Enabled { get; set; } = spec.IsEip7976Enabled;
+diff --git a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainParameters.cs b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainParameters.cs
+index 6ca9383a..7e710736 100644
+--- a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainParameters.cs
++++ b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainParameters.cs
+@@ -139,6 +139,7 @@ public class ChainParameters
+     public Address Eip2935ContractAddress { get; set; }
+     public long Eip2935RingBufferSize { get; set; } = Eip2935Constants.RingBufferSize;
+     public ulong? Eip7951TransitionTimestamp { get; set; }
++    public ulong? Mldsa65TransitionTimestamp { get; set; }
+     public ulong? Rip7212TransitionTimestamp { get; set; }
+     public ulong? Eip7702TransitionTimestamp { get; set; }
+ 
+diff --git a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecBasedSpecProvider.cs b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecBasedSpecProvider.cs
+index 419be4dd..a4726b88 100644
+--- a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecBasedSpecProvider.cs
++++ b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecBasedSpecProvider.cs
+@@ -287,6 +287,7 @@ namespace Nethermind.Specs.ChainSpecStyle
+             releaseSpec.IsEip4844Enabled = (chainSpec.Parameters.Eip4844Transition ?? long.MaxValue) <= releaseStartBlock ||
+                 (chainSpec.Parameters.Eip4844TransitionTimestamp ?? ulong.MaxValue) <= releaseStartTimestamp;
+             releaseSpec.IsEip7951Enabled = (chainSpec.Parameters.Eip7951TransitionTimestamp ?? ulong.MaxValue) <= releaseStartTimestamp;
++            releaseSpec.IsMldsa65Enabled = (chainSpec.Parameters.Mldsa65TransitionTimestamp ?? ulong.MaxValue) <= releaseStartTimestamp;
+             releaseSpec.IsRip7212Enabled = (chainSpec.Parameters.Rip7212TransitionTimestamp ?? ulong.MaxValue) <= releaseStartTimestamp;
+             releaseSpec.Eip4844TransitionTimestamp = chainSpec.Parameters.Eip4844TransitionTimestamp ?? ulong.MaxValue;
+             releaseSpec.IsEip5656Enabled = (chainSpec.Parameters.Eip5656Transition ?? long.MaxValue) <= releaseStartBlock ||
+diff --git a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecLoader.cs b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecLoader.cs
+index 420c6be2..3cdd16a5 100644
+--- a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecLoader.cs
++++ b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/ChainSpecLoader.cs
+@@ -158,6 +158,7 @@ public class ChainSpecLoader(IJsonSerializer serializer, ILogManager logManager)
+             Eip6780Transition = chainSpecJson.Params.Eip6780Transition,
+             Eip6780TransitionTimestamp = chainSpecJson.Params.Eip6780TransitionTimestamp,
+             Eip7951TransitionTimestamp = chainSpecJson.Params.Eip7951TransitionTimestamp,
++            Mldsa65TransitionTimestamp = chainSpecJson.Params.Mldsa65TransitionTimestamp,
+             Rip7212TransitionTimestamp = chainSpecJson.Params.Rip7212TransitionTimestamp,
+             Eip4788TransitionTimestamp = chainSpecJson.Params.Eip4788TransitionTimestamp,
+             Eip7702TransitionTimestamp = chainSpecJson.Params.Eip7702TransitionTimestamp,
+diff --git a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/Json/ChainSpecParamsJson.cs b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/Json/ChainSpecParamsJson.cs
+index d74a7b28..df170821 100644
+--- a/src/Nethermind/Nethermind.Specs/ChainSpecStyle/Json/ChainSpecParamsJson.cs
++++ b/src/Nethermind/Nethermind.Specs/ChainSpecStyle/Json/ChainSpecParamsJson.cs
+@@ -173,6 +173,7 @@ public class ChainSpecParamsJson : IHasNamedForks
+     public ulong? Eip7251TransitionTimestamp { get; set; }
+     public Address Eip7251ContractAddress { get; set; }
+     public ulong? Eip7951TransitionTimestamp { get; set; }
++    public ulong? Mldsa65TransitionTimestamp { get; set; }
+     public ulong? Rip7212TransitionTimestamp { get; set; }
+     public ulong? Eip7702TransitionTimestamp { get; set; }
+     public ulong? Eip7883TransitionTimestamp { get; set; }
+diff --git a/src/Nethermind/Nethermind.Specs/ReleaseSpec.cs b/src/Nethermind/Nethermind.Specs/ReleaseSpec.cs
+index 36a58d8a..259e2ad7 100644
+--- a/src/Nethermind/Nethermind.Specs/ReleaseSpec.cs
++++ b/src/Nethermind/Nethermind.Specs/ReleaseSpec.cs
+@@ -82,6 +82,7 @@ public class ReleaseSpec : IReleaseSpec
+     public bool IsEip4895Enabled { get; set; }
+     public bool IsEip4844Enabled { get; set; }
+     public bool IsEip7951Enabled { get; set; }
++    public bool IsMldsa65Enabled { get; set; }
+     public bool IsRip7212Enabled { get; set; }
+     public bool IsEip7623Enabled { get; set; }
+     public bool IsEip7976Enabled { get; set; }
+@@ -158,6 +159,7 @@ public class ReleaseSpec : IReleaseSpec
+         }
+ 
+         if (IsRip7212Enabled || IsEip7951Enabled) cache.Add(PrecompiledAddresses.P256Verify);
++        if (IsMldsa65Enabled) cache.Add(PrecompiledAddresses.Mldsa65Verify);
+ 
+         return cache.ToFrozenSet();
+     }
+diff --git a/src/Nethermind/Nethermind.Evm.Precompiles/Mldsa65Precompile.cs b/src/Nethermind/Nethermind.Evm.Precompiles/Mldsa65Precompile.cs
+new file mode 100644
+index 00000000..22554e6a
+--- /dev/null
++++ b/src/Nethermind/Nethermind.Evm.Precompiles/Mldsa65Precompile.cs
+@@ -0,0 +1,60 @@
++// SPDX-FileCopyrightText: 2026 Sepehr contributors
++// SPDX-License-Identifier: LGPL-3.0-only
++
++extern alias BouncyCastle;
++
++using System;
++using Nethermind.Core;
++using Nethermind.Core.Specs;
++using BouncyCastle::Org.BouncyCastle.Crypto;
++using BouncyCastle::Org.BouncyCastle.Crypto.Parameters;
++using BouncyCastle::Org.BouncyCastle.Security;
++
++namespace Nethermind.Evm.Precompiles;
++
++/// <summary>Sepehr ML-DSA-65 verifier. Input: message(32) || public key(1952) || signature(3309).</summary>
++public sealed class Mldsa65Precompile : IPrecompile<Mldsa65Precompile>
++{
++    public const int MessageLength = 32;
++    public const int PublicKeyLength = 1952;
++    public const int SignatureLength = 3309;
++    public const int InputLength = MessageLength + PublicKeyLength + SignatureLength;
++
++    private static readonly byte[] Success = new byte[32] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
++
++    public static Mldsa65Precompile Instance { get; } = new();
++    public static Address Address { get; } = Address.FromNumber(0x101);
++    public static string Name => "MLDSA65VERIFY";
++
++    private Mldsa65Precompile() { }
++
++    public long BaseGasCost(IReleaseSpec _) => 250_000L;
++    public long DataGasCost(ReadOnlyMemory<byte> _, IReleaseSpec __) => 0L;
++
++    public Result<byte[]> Run(ReadOnlyMemory<byte> inputData, IReleaseSpec _)
++    {
++        if (inputData.Length != InputLength)
++        {
++            return Array.Empty<byte>();
++        }
++
++        try
++        {
++            ReadOnlySpan<byte> input = inputData.Span;
++            MLDsaPublicKeyParameters publicKey = MLDsaPublicKeyParameters.FromEncoding(
++                MLDsaParameters.ml_dsa_65,
++                input.Slice(MessageLength, PublicKeyLength).ToArray());
++            ISigner verifier = SignerUtilities.GetSigner("ML-DSA-65");
++            verifier.Init(false, publicKey);
++            verifier.BlockUpdate(input[..MessageLength]);
++
++            return verifier.VerifySignature(input[(MessageLength + PublicKeyLength)..].ToArray())
++                ? Success
++                : Array.Empty<byte>();
++        }
++        catch (Exception)
++        {
++            return Array.Empty<byte>();
++        }
++    }
++}
+diff --git a/src/Nethermind/Nethermind.Evm.Test/Mldsa65PrecompileTests.cs b/src/Nethermind/Nethermind.Evm.Test/Mldsa65PrecompileTests.cs
+new file mode 100644
+index 00000000..a7ef978a
+--- /dev/null
++++ b/src/Nethermind/Nethermind.Evm.Test/Mldsa65PrecompileTests.cs
+@@ -0,0 +1,91 @@
++// SPDX-FileCopyrightText: 2026 Sepehr contributors
++// SPDX-License-Identifier: LGPL-3.0-only
++
++extern alias BouncyCastle;
++
++using System;
++using System.Diagnostics;
++using Nethermind.Core;
++using Nethermind.Evm.Precompiles;
++using Nethermind.Specs.Forks;
++using NUnit.Framework;
++using BouncyCastle::Org.BouncyCastle.Crypto;
++using BouncyCastle::Org.BouncyCastle.Crypto.Generators;
++using BouncyCastle::Org.BouncyCastle.Crypto.Parameters;
++using BouncyCastle::Org.BouncyCastle.Security;
++
++namespace Nethermind.Evm.Test;
++
++public class Mldsa65PrecompileTests
++{
++    [Test]
++    public void VerifiesMldsa65AndRejectsTampering()
++    {
++        MLDsaKeyPairGenerator generator = new();
++        generator.Init(new MLDsaKeyGenerationParameters(new SecureRandom(), MLDsaParameters.ml_dsa_65));
++        AsymmetricCipherKeyPair keyPair = generator.GenerateKeyPair();
++        byte[] message = new byte[Mldsa65Precompile.MessageLength];
++        Random.Shared.NextBytes(message);
++
++        ISigner signer = SignerUtilities.GetSigner("ML-DSA-65");
++        signer.Init(true, keyPair.Private);
++        signer.BlockUpdate(message);
++        byte[] signature = signer.GenerateSignature();
++        byte[] publicKey = ((MLDsaPublicKeyParameters)keyPair.Public).GetEncoded();
++
++        Assert.That(publicKey, Has.Length.EqualTo(Mldsa65Precompile.PublicKeyLength));
++        Assert.That(signature, Has.Length.EqualTo(Mldsa65Precompile.SignatureLength));
++
++        byte[] input = new byte[Mldsa65Precompile.InputLength];
++        message.CopyTo(input, 0);
++        publicKey.CopyTo(input, message.Length);
++        signature.CopyTo(input, message.Length + publicKey.Length);
++
++        Result<byte[]> valid = Mldsa65Precompile.Instance.Run(input, Prague.Instance);
++        Assert.That(valid.Data, Has.Length.EqualTo(32));
++        Assert.That(valid.Data[^1], Is.EqualTo(1));
++
++        input[^1] ^= 1;
++        Result<byte[]> tampered = Mldsa65Precompile.Instance.Run(input, Prague.Instance);
++        Assert.That(tampered.Data, Is.Empty);
++    }
++
++    [Test]
++    public void ChargesFixedConservativeGasAndRejectsMalformedLengths()
++    {
++        Assert.That(Mldsa65Precompile.Instance.BaseGasCost(Prague.Instance), Is.EqualTo(250_000L));
++        Assert.That(Mldsa65Precompile.Instance.DataGasCost(ReadOnlyMemory<byte>.Empty, Prague.Instance), Is.Zero);
++        Assert.That(Mldsa65Precompile.Instance.Run(new byte[Mldsa65Precompile.InputLength - 1], Prague.Instance).Data, Is.Empty);
++        Assert.That(Mldsa65Precompile.Instance.Run(new byte[Mldsa65Precompile.InputLength + 1], Prague.Instance).Data, Is.Empty);
++    }
++
++    [Test]
++    public void ReportsVerificationTimingForGasCalibration()
++    {
++        MLDsaKeyPairGenerator generator = new();
++        generator.Init(new MLDsaKeyGenerationParameters(new SecureRandom(), MLDsaParameters.ml_dsa_65));
++        AsymmetricCipherKeyPair keyPair = generator.GenerateKeyPair();
++        byte[] message = new byte[Mldsa65Precompile.MessageLength];
++        Random.Shared.NextBytes(message);
++        ISigner signer = SignerUtilities.GetSigner("ML-DSA-65");
++        signer.Init(true, keyPair.Private);
++        signer.BlockUpdate(message);
++        byte[] signature = signer.GenerateSignature();
++        byte[] publicKey = ((MLDsaPublicKeyParameters)keyPair.Public).GetEncoded();
++        byte[] input = new byte[Mldsa65Precompile.InputLength];
++        message.CopyTo(input, 0);
++        publicKey.CopyTo(input, message.Length);
++        signature.CopyTo(input, message.Length + publicKey.Length);
++
++        const int iterations = 25;
++        Stopwatch stopwatch = Stopwatch.StartNew();
++        for (int i = 0; i < iterations; i++)
++        {
++            Assert.That(Mldsa65Precompile.Instance.Run(input, Prague.Instance).Data, Has.Length.EqualTo(32));
++        }
++        stopwatch.Stop();
++
++        TestContext.Out.WriteLine(
++            $"ML-DSA-65 verify: {stopwatch.Elapsed.TotalMilliseconds / iterations:F3} ms average; fixed gas: 250000; input: {Mldsa65Precompile.InputLength} bytes");
++    }
++}

@@ -1,0 +1,36 @@
+{
+  "topology": [
+    [
+      1,
+      2
+    ],
+    [
+      3,
+      4
+    ]
+  ],
+  "validatorsPerPartition": 128,
+  "startSlots": {
+    "partition12": 80,
+    "partition34": 80
+  },
+  "observationStartSlots": {
+    "partition12": 92,
+    "partition34": 91
+  },
+  "endSlots": {
+    "partition12": 161,
+    "partition34": 161
+  },
+  "observationSlotsRequired": 64,
+  "settledCheckpoints": {
+    "partition12": "8:0x6d15e849434a962abba611f51b2b0c6353f32ba2a227b27ce2b03dccf4ed484a",
+    "partition34": "8:0x6d15e849434a962abba611f51b2b0c6353f32ba2a227b27ce2b03dccf4ed484a"
+  },
+  "endCheckpoints": {
+    "partition12": "8:0x6d15e849434a962abba611f51b2b0c6353f32ba2a227b27ce2b03dccf4ed484a",
+    "partition34": "8:0x6d15e849434a962abba611f51b2b0c6353f32ba2a227b27ce2b03dccf4ed484a"
+  },
+  "safeHalt": true,
+  "healedEvidence": "evidence-post-partition.json"
+}

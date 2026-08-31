@@ -4,7 +4,8 @@
   "engine": {
     "Ethash": {
       "params": {
-        "minimumDifficulty": "0x2000",
+        "fixedDifficulty": "0x400",
+        "minimumDifficulty": "0x400",
         "difficultyBoundDivisor": "0x800",
         "difficultyBombDisabled": "true",
         "durationLimit": "0xd",
@@ -50,9 +51,10 @@
     "eip3198Transition": "0x0",
     "eip3529Transition": "0x0",
     "eip3541Transition": "0x0",
-    "terminalTotalDifficulty": "0x42000",
+    "terminalTotalDifficulty": "0x8400",
     "mergeForkIdTransition": "0x0",
-    "depositContractAddress": "0x4242424242424242424242424242424242424242"
+    "mldsa65TransitionTimestamp": "0x0",
+    "depositContractAddress": "0xf2e246bb76df876cef8b38ae84130f4f55de395b"
   },
   "genesis": {
     "seal": {
@@ -61,7 +63,7 @@
         "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
       }
     },
-    "difficulty": "0x2000",
+    "difficulty": "0x400",
     "author": "0x0000000000000000000000000000000000000000",
     "timestamp": "0x65920080",
     "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",

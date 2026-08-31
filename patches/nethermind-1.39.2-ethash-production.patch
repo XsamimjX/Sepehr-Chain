@@ -1,3 +1,34 @@
+diff --git a/src/Nethermind/Nethermind.Consensus.Ethash/Ethash.cs b/src/Nethermind/Nethermind.Consensus.Ethash/Ethash.cs
+index 1cb8a4c7..17197b1a 100644
+--- a/src/Nethermind/Nethermind.Consensus.Ethash/Ethash.cs
++++ b/src/Nethermind/Nethermind.Consensus.Ethash/Ethash.cs
+@@ -6,6 +6,7 @@ using System.Buffers.Binary;
+ using System.Diagnostics;
+ using System.Numerics;
+ using System.Runtime.CompilerServices;
++using System.Threading;
+ using Nethermind.Core;
+ using Nethermind.Core.Crypto;
+ using Nethermind.Core.Extensions;
+@@ -146,8 +147,9 @@ namespace Nethermind.Consensus.Ethash
+             return (BigInteger)resultAsInteger <= target;
+         }
+ 
+-        public (Hash256 MixHash, ulong Nonce) Mine(BlockHeader header, ulong? startNonce = null)
++        public (Hash256 MixHash, ulong Nonce) Mine(BlockHeader header, ulong? startNonce = null, CancellationToken cancellationToken = default)
+         {
++            cancellationToken.ThrowIfCancellationRequested();
+             uint epoch = GetEpoch(header.Number);
+             IEthashDataSet dataSet = _hintBasedCache.Get(epoch);
+             if (dataSet is null)
+@@ -164,6 +166,7 @@ namespace Nethermind.Consensus.Ethash
+             byte[] mixHash;
+             while (true)
+             {
++                cancellationToken.ThrowIfCancellationRequested();
+                 (mixHash, ValueHash256 result, _) = Hashimoto(fullSize, dataSet, headerHashed, null, nonce);
+                 if (IsLessOrEqualThanTarget(result.Bytes, header.Difficulty))
+                 {
 diff --git a/src/Nethermind/Nethermind.Consensus.Ethash/EthashBlockProducerFactory.cs b/src/Nethermind/Nethermind.Consensus.Ethash/EthashBlockProducerFactory.cs
 index a80646e4..84166d4d 100644
 --- a/src/Nethermind/Nethermind.Consensus.Ethash/EthashBlockProducerFactory.cs
@@ -58,7 +89,7 @@ index a80646e4..84166d4d 100644
 +    }
  }
 diff --git a/src/Nethermind/Nethermind.Consensus.Ethash/EthashSealer.cs b/src/Nethermind/Nethermind.Consensus.Ethash/EthashSealer.cs
-index 9a24e3d4..68018739 100644
+index dfa830d0..252db15b 100644
 --- a/src/Nethermind/Nethermind.Consensus.Ethash/EthashSealer.cs
 +++ b/src/Nethermind/Nethermind.Consensus.Ethash/EthashSealer.cs
 @@ -11,18 +11,11 @@ using Nethermind.Logging;
@@ -84,3 +115,400 @@ index 9a24e3d4..68018739 100644
  
          public async Task<Block> SealBlock(Block processed, CancellationToken cancellationToken)
          {
+@@ -55,7 +48,7 @@ namespace Nethermind.Consensus.Ethash
+                 throw new InvalidOperationException($"Requested to mine an invalid block {processed.Header}");
+             }
+ 
+-            Task<Block> miningTask = Task.Factory.StartNew(() => Mine(processed, startNonce), cancellationToken);
++            Task<Block> miningTask = Task.Factory.StartNew(() => Mine(processed, startNonce, cancellationToken), cancellationToken);
+             await miningTask.ContinueWith(
+                 t =>
+                 {
+@@ -68,9 +61,9 @@ namespace Nethermind.Consensus.Ethash
+             return await miningTask;
+         }
+ 
+-        private Block Mine(Block block, ulong? startNonce)
++        private Block Mine(Block block, ulong? startNonce, CancellationToken cancellationToken)
+         {
+-            (Hash256 MixHash, ulong Nonce) = _ethash.Mine(block.Header, startNonce);
++            (Hash256 MixHash, ulong Nonce) = _ethash.Mine(block.Header, startNonce, cancellationToken);
+             block.Header.Nonce = Nonce;
+             block.Header.MixHash = MixHash;
+             return block;
+diff --git a/src/Nethermind/Nethermind.Consensus.Ethash/IEthash.cs b/src/Nethermind/Nethermind.Consensus.Ethash/IEthash.cs
+index 1b65a9fa..7248e350 100644
+--- a/src/Nethermind/Nethermind.Consensus.Ethash/IEthash.cs
++++ b/src/Nethermind/Nethermind.Consensus.Ethash/IEthash.cs
+@@ -2,6 +2,7 @@
+ // SPDX-License-Identifier: LGPL-3.0-only
+ 
+ using System;
++using System.Threading;
+ using Nethermind.Core;
+ using Nethermind.Core.Crypto;
+ 
+@@ -11,6 +12,6 @@ namespace Nethermind.Consensus.Ethash
+     {
+         void HintRange(Guid guid, long start, long end);
+         bool Validate(BlockHeader header);
+-        (Hash256 MixHash, ulong Nonce) Mine(BlockHeader header, ulong? startNonce = null); // TODO: for now only with cache
++        (Hash256 MixHash, ulong Nonce) Mine(BlockHeader header, ulong? startNonce = null, CancellationToken cancellationToken = default); // TODO: for now only with cache
+     }
+ }
+diff --git a/src/Nethermind/Nethermind.Consensus/StandardBlockProducerRunner.cs b/src/Nethermind/Nethermind.Consensus/StandardBlockProducerRunner.cs
+index e0d48596..016cdbe2 100644
+--- a/src/Nethermind/Nethermind.Consensus/StandardBlockProducerRunner.cs
++++ b/src/Nethermind/Nethermind.Consensus/StandardBlockProducerRunner.cs
+@@ -14,6 +14,8 @@ namespace Nethermind.Consensus;
+ 
+ public class StandardBlockProducerRunner(IBlockProductionTrigger trigger, IBlockTree blockTree, IBlockProducer blockProducer) : IBlockProducerRunner
+ {
++    private readonly object _headChangeLock = new();
++    private CancellationTokenSource _headChangeCancellationToken = new();
+     private bool _isRunning;
+     private CancellationTokenSource? _producerCancellationToken;
+     private DateTime _lastProducedBlockDateTime;
+@@ -27,27 +29,47 @@ public class StandardBlockProducerRunner(IBlockProductionTrigger trigger, IBlock
+ 
+     private async Task<Block?> TryProduceAndAnnounceNewBlock(CancellationToken token, BlockHeader? parentHeader, IBlockTracer? blockTracer = null, PayloadAttributes? payloadAttributes = null)
+     {
+-        using CancellationTokenSource tokenSource = CancellationTokenSource.CreateLinkedTokenSource(token, _producerCancellationToken!.Token);
+-        token = tokenSource.Token;
+-
+-        Block? block = null;
+-        try
++        CancellationTokenSource tokenSource;
++        lock (_headChangeLock)
++        {
++            tokenSource = CancellationTokenSource.CreateLinkedTokenSource(token, _producerCancellationToken!.Token, _headChangeCancellationToken.Token);
++        }
++        using (tokenSource)
+         {
+-            block = await blockProducer.BuildBlock(parentHeader, blockTracer, payloadAttributes, IBlockProducer.Flags.None, token);
+-            if (block is not null)
++            token = tokenSource.Token;
++
++            Block? block = null;
++            try
++            {
++                block = await blockProducer.BuildBlock(parentHeader, blockTracer, payloadAttributes, IBlockProducer.Flags.None, token);
++                if (block is not null)
++                {
++                    _lastProducedBlockDateTime = DateTime.UtcNow;
++                    BlockProduced?.Invoke(this, new BlockEventArgs(block));
++                }
++            }
++            catch (Exception e) when (e is not TaskCanceledException)
+             {
+-                _lastProducedBlockDateTime = DateTime.UtcNow;
+-                BlockProduced?.Invoke(this, new BlockEventArgs(block));
++                if (Logger.IsError) Logger.Error("Failed to produce block", e);
++                Metrics.FailedBlockSeals++;
++                throw;
+             }
++
++            return block;
+         }
+-        catch (Exception e) when (e is not TaskCanceledException)
++    }
++
++    private void OnNewHeadBlock(object? sender, BlockEventArgs e)
++    {
++        CancellationTokenSource previous;
++        lock (_headChangeLock)
+         {
+-            if (Logger.IsError) Logger.Error("Failed to produce block", e);
+-            Metrics.FailedBlockSeals++;
+-            throw;
++            previous = _headChangeCancellationToken;
++            _headChangeCancellationToken = new CancellationTokenSource();
+         }
+ 
+-        return block;
++        previous.Cancel();
++        previous.Dispose();
+     }
+ 
+     public virtual void Start()
+@@ -55,6 +77,7 @@ public class StandardBlockProducerRunner(IBlockProductionTrigger trigger, IBlock
+         _producerCancellationToken = new CancellationTokenSource();
+         _isRunning = true;
+         trigger.TriggerBlockProduction += OnTriggerBlockProduction;
++        blockTree.NewHeadBlock += OnNewHeadBlock;
+         _lastProducedBlockDateTime = DateTime.UtcNow;
+     }
+ 
+@@ -64,7 +87,12 @@ public class StandardBlockProducerRunner(IBlockProductionTrigger trigger, IBlock
+         _producerCancellationToken?.Cancel();
+         _isRunning = false;
+         trigger.TriggerBlockProduction -= OnTriggerBlockProduction;
++        blockTree.NewHeadBlock -= OnNewHeadBlock;
+         _producerCancellationToken?.Dispose();
++        lock (_headChangeLock)
++        {
++            _headChangeCancellationToken.Cancel();
++        }
+         return Task.CompletedTask;
+     }
+ 
+diff --git a/src/Nethermind/Nethermind.Facade/Eth/BlockForRpc.cs b/src/Nethermind/Nethermind.Facade/Eth/BlockForRpc.cs
+index 690efb0b..f3ca7e13 100644
+--- a/src/Nethermind/Nethermind.Facade/Eth/BlockForRpc.cs
++++ b/src/Nethermind/Nethermind.Facade/Eth/BlockForRpc.cs
+@@ -70,11 +70,9 @@ public class BlockForRpc
+                 SlotNumber = block.SlotNumber;
+             }
+ 
+-            // Intentional divergence from Geth: non-merge chains still emit totalDifficulty when it's loaded.
+-            if (specProvider.MergeBlockNumber is null)
+-            {
+-                TotalDifficulty = block.TotalDifficulty;
+-            }
++            // Pre-merge blocks retain totalDifficulty after a configured Merge so
++            // consensus clients can discover the terminal PoW block by EIP-3675.
++            TotalDifficulty = block.TotalDifficulty;
+         }
+ 
+         Number = block.Number;
+diff --git a/src/Nethermind/Nethermind.Merge.Plugin.Test/BaseEngineModuleTests.cs b/src/Nethermind/Nethermind.Merge.Plugin.Test/BaseEngineModuleTests.cs
+index aa8fb9b8..5002dea5 100644
+--- a/src/Nethermind/Nethermind.Merge.Plugin.Test/BaseEngineModuleTests.cs
++++ b/src/Nethermind/Nethermind.Merge.Plugin.Test/BaseEngineModuleTests.cs
+@@ -31,6 +31,7 @@ using Nethermind.JsonRpc;
+ using Nethermind.Logging;
+ using Nethermind.Merge.Plugin.BlockProduction;
+ using Nethermind.Merge.Plugin.Data;
++using Nethermind.Merge.Plugin.Handlers;
+ using Nethermind.Merge.Plugin.Synchronization;
+ using static Nethermind.Merge.Plugin.MergeConfig;
+ using Nethermind.Specs;
+@@ -232,16 +233,17 @@ public abstract partial class BaseEngineModuleTests
+                     return new StoringBlockImprovementContextFactory(factory);
+                 })
+                 .AddSingleton<IBlockProducer>(_ => BlockProducer)
+-                .AddSingleton<IPayloadPreparationService, IBlockProducer, ITxPool, IBlockImprovementContextFactory, ITimerFactory, ILogManager>(
+-                    (producer, txPool, ctxFactory, timer, logManager) =>
++                .AddSingleton<IPayloadPreparationService>(
++                    context =>
+                         new PayloadPreparationService(
+-                            producer,
+-                            txPool,
+-                            ctxFactory,
+-                            timer,
+-                            logManager,
++                            context.Resolve<IBlockProducer>(),
++                            context.Resolve<ITxPool>(),
++                            context.Resolve<IBlockImprovementContextFactory>(),
++                            context.Resolve<ITimerFactory>(),
++                            context.Resolve<ILogManager>(),
+                             TimeSpan.FromSeconds(MergeConfig.SecondsPerSlot),
+-                            50000)) // by default we want to avoid cleanup payload effects in testing
++                            50000,
++                            blockCacheService: context.Resolve<IBlockCacheService>())) // by default we want to avoid cleanup payload effects in testing
+                 .AddSingleton(Substitute.For<IEngineRequestsTracker>())
+                 .AddSingleton(Substitute.For<ISyncPeerPool>())
+                 .AddSingleton(Substitute.For<ISyncPointers>())
+diff --git a/src/Nethermind/Nethermind.Merge.Plugin.Test/EngineModuleTests.PayloadProduction.cs b/src/Nethermind/Nethermind.Merge.Plugin.Test/EngineModuleTests.PayloadProduction.cs
+index 435fcc69..a789cb51 100644
+--- a/src/Nethermind/Nethermind.Merge.Plugin.Test/EngineModuleTests.PayloadProduction.cs
++++ b/src/Nethermind/Nethermind.Merge.Plugin.Test/EngineModuleTests.PayloadProduction.cs
+@@ -31,6 +31,7 @@ using Nethermind.Logging;
+ using Nethermind.Logging.NLog;
+ using Nethermind.Merge.Plugin.BlockProduction;
+ using Nethermind.Merge.Plugin.Data;
++using Nethermind.Merge.Plugin.Handlers;
+ using Nethermind.Serialization.Rlp;
+ using Nethermind.Specs;
+ using Nethermind.Specs.Forks;
+@@ -63,6 +64,15 @@ public partial class EngineModuleTests
+         Assert.That(responseSecond, Is.Not.Null);
+         Assert.That(responseSecond.Result.ResultType, Is.EqualTo(ResultType.Success));
+         Assert.That(responseSecond.Data!.BlockHash!, Is.EqualTo(responseFirst.Data!.BlockHash!));
++        IBlockCacheService blockCacheService = chain.Container.Resolve<IBlockCacheService>();
++        Assert.That(blockCacheService.BlockCache.ContainsKey(responseFirst.Data.BlockHash!), Is.True);
++
++        ForkchoiceStateV1 producedForkchoice = new(responseFirst.Data.BlockHash!, Keccak.Zero, startingHead);
++        ResultWrapper<ForkchoiceUpdatedV1Result> producedForkchoiceResponse =
++            await rpc.engine_forkchoiceUpdatedV1(producedForkchoice);
++
++        Assert.That(producedForkchoiceResponse.Data.PayloadStatus.Status, Is.Not.EqualTo(PayloadStatus.Syncing));
++        Assert.That(chain.BlockTree.FindBlock(responseFirst.Data.BlockHash!), Is.Not.Null);
+     }
+ 
+     [Test]
+diff --git a/src/Nethermind/Nethermind.Merge.Plugin.Test/MergeHeaderValidatorTests.cs b/src/Nethermind/Nethermind.Merge.Plugin.Test/MergeHeaderValidatorTests.cs
+index e8c1306d..1329c18a 100644
+--- a/src/Nethermind/Nethermind.Merge.Plugin.Test/MergeHeaderValidatorTests.cs
++++ b/src/Nethermind/Nethermind.Merge.Plugin.Test/MergeHeaderValidatorTests.cs
+@@ -53,4 +53,25 @@ public class MergeHeaderValidatorTests
+ 
+         Assert.That(ctx.MergeHeaderValidator.Validate(header, parent), Is.False);
+     }
++
++    [Test]
++    public void RejectsPoWHeaderAfterTerminalTotalDifficulty()
++    {
++        BlockHeader parent = Build.A.BlockHeader
++            .WithDifficulty(0)
++            .WithTotalDifficulty(1024)
++            .TestObject;
++
++        BlockHeader header = Build.A.BlockHeader
++            .WithParent(parent)
++            .WithDifficulty(1)
++            .WithTotalDifficulty(1025)
++            .TestObject;
++
++        Context ctx = new();
++        ctx.PoSSwitcher.IsPostMerge(header).Returns(true);
++        ctx.PoSSwitcher.GetBlockConsensusInfo(header).Returns((false, true));
++
++        Assert.That(ctx.MergeHeaderValidator.Validate(header, parent), Is.False);
++    }
+ }
+diff --git a/src/Nethermind/Nethermind.Merge.Plugin/BlockProduction/PayloadPreparationService.cs b/src/Nethermind/Nethermind.Merge.Plugin/BlockProduction/PayloadPreparationService.cs
+index d5c5acf9..97197055 100644
+--- a/src/Nethermind/Nethermind.Merge.Plugin/BlockProduction/PayloadPreparationService.cs
++++ b/src/Nethermind/Nethermind.Merge.Plugin/BlockProduction/PayloadPreparationService.cs
+@@ -36,6 +36,7 @@ public class PayloadPreparationService : IPayloadPreparationService, IDisposable
+     private readonly IBlockImprovementContextFactory _blockImprovementContextFactory;
+     private readonly ILogger _logger;
+     private readonly Core.Timers.ITimer _timer;
++    private readonly IBlockCacheService? _blockCacheService;
+ 
+     // by default we will cleanup the old payload once per six slot. There is no need to fire it more often
+     public const int SlotsPerOldPayloadCleanup = 6;
+@@ -58,13 +59,15 @@ public class PayloadPreparationService : IPayloadPreparationService, IDisposable
+         IBlockImprovementContextFactory blockImprovementContextFactory,
+         ITimerFactory timerFactory,
+         ILogManager logManager,
+-        IBlocksConfig blockConfig) : this(
++        IBlocksConfig blockConfig,
++        IBlockCacheService? blockCacheService = null) : this(
+         blockProducer,
+         txPool,
+         blockImprovementContextFactory,
+         timerFactory,
+         logManager,
+-        TimeSpan.FromSeconds(blockConfig.SecondsPerSlot))
++        TimeSpan.FromSeconds(blockConfig.SecondsPerSlot),
++        blockCacheService: blockCacheService)
+     {
+     }
+ 
+@@ -76,7 +79,8 @@ public class PayloadPreparationService : IPayloadPreparationService, IDisposable
+         ILogManager logManager,
+         TimeSpan timePerSlot,
+         int slotsPerOldPayloadCleanup = SlotsPerOldPayloadCleanup,
+-        TimeSpan? improvementDelay = null)
++        TimeSpan? improvementDelay = null,
++        IBlockCacheService? blockCacheService = null)
+     {
+         _blockProducer = blockProducer;
+         _txPool = txPool;
+@@ -90,6 +94,7 @@ public class PayloadPreparationService : IPayloadPreparationService, IDisposable
+         _timer.Start();
+ 
+         _logger = logManager.GetClassLogger<PayloadPreparationService>();
++        _blockCacheService = blockCacheService;
+     }
+ 
+     public string StartPreparingPayload(BlockHeader parentHeader, PayloadAttributes payloadAttributes)
+@@ -409,6 +414,11 @@ public class PayloadPreparationService : IPayloadPreparationService, IDisposable
+                     }
+                 }
+ 
++                if (blockContext.CurrentBestBlock is { } block)
++                {
++                    _blockCacheService?.TryAddBlock(block);
++                }
++
+                 return blockContext;
+             }
+             finally
+diff --git a/src/Nethermind/Nethermind.Merge.Plugin/Handlers/ForkchoiceUpdatedHandler.cs b/src/Nethermind/Nethermind.Merge.Plugin/Handlers/ForkchoiceUpdatedHandler.cs
+index 2eab5bd6..59dfece3 100644
+--- a/src/Nethermind/Nethermind.Merge.Plugin/Handlers/ForkchoiceUpdatedHandler.cs
++++ b/src/Nethermind/Nethermind.Merge.Plugin/Handlers/ForkchoiceUpdatedHandler.cs
+@@ -59,6 +59,16 @@ public class ForkchoiceUpdatedHandler(
+     public async Task<ResultWrapper<ForkchoiceUpdatedV1Result>> Handle(ForkchoiceStateV1 forkchoiceState, PayloadAttributes? payloadAttributes, int version)
+     {
+         BlockHeader? newHeadHeader = GetBlockHeader(forkchoiceState.HeadBlockHash);
++        if (newHeadHeader is null
++            && blockCacheService.BlockCache.TryGetValue(forkchoiceState.HeadBlockHash, out Block? locallyProducedBlock)
++            && _blockTree.FindHeader(locallyProducedBlock.ParentHash!, blockNumber: locallyProducedBlock.Number - 1) is not null)
++        {
++            await _blockTree.SuggestBlockAsync(
++                locallyProducedBlock,
++                BlockTreeSuggestOptions.ShouldProcess | BlockTreeSuggestOptions.FillBeaconBlock);
++            newHeadHeader = GetBlockHeader(forkchoiceState.HeadBlockHash);
++        }
++
+         return await ApplyForkchoiceUpdate(newHeadHeader, forkchoiceState, payloadAttributes)
+             ?? ValidateAttributes(payloadAttributes, version)
+             ?? StartBuildingPayload(newHeadHeader!, forkchoiceState, payloadAttributes);
+diff --git a/src/Nethermind/Nethermind.Mining.Test/EthashTests.cs b/src/Nethermind/Nethermind.Mining.Test/EthashTests.cs
+index a670b342..1f5b3be9 100644
+--- a/src/Nethermind/Nethermind.Mining.Test/EthashTests.cs
++++ b/src/Nethermind/Nethermind.Mining.Test/EthashTests.cs
+@@ -1,6 +1,7 @@
+ // SPDX-FileCopyrightText: 2022 Demerzel Solutions Limited
+ // SPDX-License-Identifier: LGPL-3.0-only
+ 
++using System.Threading;
+ using Nethermind.Consensus;
+ using Nethermind.Consensus.Ethash;
+ using Nethermind.Core;
+@@ -779,6 +780,17 @@ public class EthashTests
+     [TestCase(49U, false)]
+     public void Is_prime_works(uint number, bool isPrime) => Assert.That(Ethash.IsPrime(number), Is.EqualTo(isPrime));
+ 
++    [Test]
++    public void Mine_honors_pre_canceled_token()
++    {
++        using CancellationTokenSource cancellation = new();
++        cancellation.Cancel();
++
++        Ethash ethash = new(LimboLogs.Instance);
++
++        Assert.Throws<OperationCanceledException>(() => ethash.Mine(null!, cancellationToken: cancellation.Token));
++    }
++
+     [TestCase("f9021af90215a0cc395ced01d7af387640ac1258ab8819b84ca3e59ff476d933441c3800c63928a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d4934794738db714c08b8a32a29e0e68af00215079aa9c5ca03665d3f9edac25c8a8cdad22945e0fb2e6812f679bea3445639b3890f310ced9a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008606b4637b26e7830a2ac9832fefd8808456687ffc98d783010203844765746887676f312e352e31856c696e7578a0a64edb0df18caa7d36fcb8ca740fee12d4d82b39883ddb3d729414122ba7410688524d07ed4c40ab09c0c0")]
+     [TestCase("f9021af90215a0c49ccf0465b0222c815aed70ec9a8317ffe2cfe3539e9340c6bbeb06699a80dea01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347942a65aca4d5fc5b5c859090a6c34d164135398226a00a550ad67f02eeb6030abf46f9c88435a05b058374ea1ee4c177ef28c4d2f475a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008606b53a07965b830a2aca832fefd880845668800198d783010302844765746887676f312e352e31856c696e7578a035f6b345260d8c3807bb0e805f23866c5ba9431a9e9a5e240101f541990f47f5886796ab8d23f3c3c2c0c0", Explicit = true)]
+     [TestCase("f9021af90215a076e41437e45099f2a0872a8df8623a644ead1136afe751358c56781513ecb74ea01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d493479452bc44d5378309ee2abf1539bf71de1b7d7be3b5a09b0dcb614329b921c4ef22eb4f8a913539806da3cbe43c1eafa37cfa3943a845a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008606b610aed75d830a2acb832fefd880845668800598d783010203844765746887676f312e342e32856c696e7578a056ac10c8b2378f46b610db89631968bc5f409f32934f287b95d5cfbe12cefd05886ba4adf9b970445ec0c0", Explicit = true)]
+diff --git a/src/Nethermind/Nethermind.Facade.Test/Eth/BlockForRpcTests.cs b/src/Nethermind/Nethermind.Facade.Test/Eth/BlockForRpcTests.cs
+new file mode 100755
+index 00000000..3e0e1666
+--- /dev/null
++++ b/src/Nethermind/Nethermind.Facade.Test/Eth/BlockForRpcTests.cs
+@@ -0,0 +1,28 @@
++// SPDX-FileCopyrightText: 2026 Demerzel Solutions Limited
++// SPDX-License-Identifier: LGPL-3.0-only
++
++using Nethermind.Core.Specs;
++using Nethermind.Core.Test.Builders;
++using Nethermind.Facade.Eth;
++using Nethermind.Int256;
++using NSubstitute;
++using NUnit.Framework;
++
++namespace Nethermind.Facade.Test.Eth;
++
++public class BlockForRpcTests
++{
++    [Test]
++    public void Includes_loaded_total_difficulty_when_merge_is_configured()
++    {
++        ISpecProvider specProvider = Substitute.For<ISpecProvider>();
++        specProvider.GetSpec(Arg.Any<long>(), Arg.Any<ulong>()).Returns(Substitute.For<IReleaseSpec>());
++        specProvider.MergeBlockNumber.Returns(32);
++        UInt256 totalDifficulty = 270336;
++        var block = Build.A.Block.WithNumber(32).WithTotalDifficulty(totalDifficulty).TestObject;
++
++        BlockForRpc result = new(block, false, specProvider);
++
++        Assert.That(result.TotalDifficulty, Is.EqualTo(totalDifficulty));
++    }
++}

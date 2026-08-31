@@ -72,6 +72,6 @@
   },
   "nodes": [],
   "accounts": {
-    "__FAUCET_ADDRESS__": { "balance": "0x33b2e3c9fd0803ce8000000" }
+    "__FAUCET_ADDRESS__": { "balance": "0xd3c21bcecceda1000000" }
   }
 }

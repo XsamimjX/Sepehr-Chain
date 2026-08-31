@@ -10,9 +10,9 @@ fi
 : "${FAUCET_KEYSTORE:?FAUCET_KEYSTORE is required}"
 : "${FAUCET_PASSWORD_FILE:?FAUCET_PASSWORD_FILE is required}"
 
-amount="${FAUCET_AMOUNT_SEP:-10}"
-if [[ ! "$amount" =~ ^[1-9][0-9]*$ ]] || (( amount > 100 )); then
-    echo "FAUCET_AMOUNT_SEP must be an integer from 1 through 100" >&2
+amount="${FAUCET_AMOUNT_SEP:-200}"
+if [[ ! "$amount" =~ ^[1-9][0-9]*$ ]] || (( amount > 200 )); then
+    echo "FAUCET_AMOUNT_SEP must be an integer from 1 through 200" >&2
     exit 64
 fi
 

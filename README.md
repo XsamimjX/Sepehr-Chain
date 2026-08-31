@@ -2,6 +2,8 @@
 
 [English](#english) · [فارسی](#فارسی)
 
+Repository: <https://github.com/XsamimjX/Sepehr-Chain>
+
 ## English
 
 This independent repository contains the Sepehr execution/consensus client configuration, client patches, transition tooling, and reproducible evidence.
@@ -21,23 +23,65 @@ Open TCP and UDP `30303` for execution P2P, TCP `13000` and UDP `12000` for cons
 
 At least two stable execution bootnodes and two stable consensus bootstrap nodes are required. Bootnodes introduce peers; after discovery, nodes connect and gossip directly.
 
-### Finalize the immutable execution genesis
+### Join the network as a community member
 
-Create the faucet account offline and retain only its public address in the genesis. Keep its encrypted keystore and password file outside Git. Then render the canonical genesis with real, stable public bootnode records:
+You do not create a new genesis when joining. Download the release bundle URL and SHA-256 published by the Sepehr maintainers, then run:
 
 ```bash
-python3 scripts/testnet/render-network.py \
-  --faucet-address 0xYOUR_PUBLIC_FAUCET_ADDRESS \
+git clone https://github.com/XsamimjX/Sepehr-Chain.git
+cd Sepehr-Chain
+./scripts/testnet/sepehr-node.sh doctor
+sudo ./scripts/testnet/sepehr-node.sh join \
+  --bundle https://RELEASE_URL/sepehr-testnet.tar.gz \
+  --bundle-sha256 PUBLISHED_64_CHARACTER_SHA256 \
+  --external-ip YOUR_PUBLIC_IPV4 \
+  --role full
+sudo ./scripts/testnet/sepehr-node.sh start
+./scripts/testnet/sepehr-node.sh status
+```
+
+Before joining, open TCP/UDP `30303`, TCP `13000`, and UDP `12000` in the VPS firewall and provider firewall. Do not open `8551`, `4000`, or `3500`. Compare the bundle checksum with a second official channel. A normal full node needs no validator or faucet key.
+
+To become a validator, first coordinate with maintainers so you receive a unique validator allocation and slashing-protection record. Never reuse validator keys on two machines:
+
+```bash
+sudo ./scripts/testnet/sepehr-node.sh join \
+  --bundle /path/to/sepehr-testnet.tar.gz \
+  --external-ip YOUR_PUBLIC_IPV4 \
+  --role validator \
+  --fee-recipient 0xYOUR_PUBLIC_REWARD_ADDRESS \
+  --validator-wallet /secure/path/to/your-wallet \
+  --wallet-password-file /secure/path/to/password.txt
+```
+
+The helper verifies the outer bundle hash and every bundled file, creates a node-local JWT, keeps APIs on loopback, installs systemd services, and never downloads validator secrets from the public bundle.
+
+### Finalize the immutable execution genesis
+
+Create four faucet accounts offline—one for each initial operator—and retain only their public addresses in genesis. Keep encrypted keystores and passwords outside Git. Maintainers normally use the one-command bundle builder:
+
+```bash
+./scripts/testnet/sepehr-node.sh create \
+  --faucet 0xNODE_1_FAUCET \
+  --faucet 0xNODE_2_FAUCET \
+  --faucet 0xNODE_3_FAUCET \
+  --faucet 0xNODE_4_FAUCET \
   --execution-bootnode enode://NODE_1_PUBLIC_KEY@VPS_1_IP:30303 \
   --execution-bootnode enode://NODE_2_PUBLIC_KEY@VPS_2_IP:30303 \
-  --output config/testnet/execution-nethermind.json
+  --consensus-bootnode enr:NODE_1_ENR \
+  --consensus-bootnode enr:NODE_2_ENR \
+  --genesis-ssz /secure/build/genesis.ssz \
+  --nethermind-bin artifacts/nethermind/nethermind \
+  --beacon-bin artifacts/prysm/beacon-chain \
+  --validator-bin artifacts/prysm/validator \
+  --output release/sepehr-testnet.tar.gz
 ```
 
 The resulting file is immutable once the network starts. Distribute the exact same file and SHA-256 digest to every host. The consensus genesis must then be generated from the 256 real validator deposits and use the execution genesis hash; the template is not launch-ready until that `genesis.ssz`, its bootstrap ENRs, and the checksum manifest exist.
 
 ### Fund a test wallet
 
-The genesis assigns 1,000,000,000 test SEP to the faucet address. The operator can grant 10 SEP by default:
+Genesis assigns 1,000,000 valueless test SEP to each of four node-operated faucets. Each accepted wallet request receives 200 SEP by default:
 
 ```bash
 export SEPEHR_RPC_URL=http://127.0.0.1:8545
@@ -46,7 +90,7 @@ export FAUCET_PASSWORD_FILE=/etc/sepehr/secrets/faucet-password
 scripts/testnet/fund-wallet.sh 0xRECIPIENT_ADDRESS
 ```
 
-The script caps one transfer at 100 SEP and does not put the private key on the command line. It is an operator funding path, not yet a public Sepolia-style web faucet. A public faucet still requires PostgreSQL-backed address/IP limits, abuse controls, signer isolation, monitoring, and tests before exposure.
+The script caps one transfer at 200 SEP and does not put the private key on the command line. It is an operator funding path, not yet a public Sepolia-style web faucet. A public faucet still requires PostgreSQL-backed address/IP limits, abuse controls, signer isolation, monitoring, and tests before exposure.
 
 ### Small VPS profile
 
@@ -85,6 +129,27 @@ The current `scripts/phase2/` commands are research harnesses, not four-VPS inst
 
 زنجیره سپهر مخزن مستقل کلاینت اجرایی/اجماع، وصله‌های پژوهشی، تنظیمات گذار اثبات کار به اثبات سهام و شواهد قابل‌بازسازی است. تست‌نت سپهر مانند یک شبکه پایدار و اصلی رفتار می‌کند، اما همه دارایی‌های آن فاقد ارزش و غیرقابل بازخرید هستند؛ این شبکه مین‌نت سپهر نیست.
 
+مخزن رسمی: <https://github.com/XsamimjX/Sepehr-Chain>
+
+### پیوستن یک عضو جامعه به شبکه
+
+برای پیوستن، genesis جدید نسازید. آدرس بسته رسمی و SHA-256 آن را از انتشار رسمی دریافت کنید و مراحل زیر را انجام دهید:
+
+```bash
+git clone https://github.com/XsamimjX/Sepehr-Chain.git
+cd Sepehr-Chain
+./scripts/testnet/sepehr-node.sh doctor
+sudo ./scripts/testnet/sepehr-node.sh join \
+  --bundle https://RELEASE_URL/sepehr-testnet.tar.gz \
+  --bundle-sha256 PUBLISHED_SHA256 \
+  --external-ip YOUR_PUBLIC_IPV4 \
+  --role full
+sudo ./scripts/testnet/sepehr-node.sh start
+./scripts/testnet/sepehr-node.sh status
+```
+
+در فایروال TCP/UDP پورت `30303`،‏ TCP پورت `13000` و UDP پورت `12000` را باز کنید. پورت‌های `8551`،‏ `4000` و `3500` را عمومی نکنید. یک full node عادی به کلید اعتبارسنج یا faucet نیاز ندارد. برای validator شدن باید ابتدا از نگهدارندگان سهم کلید منحصربه‌فرد و slashing protection بگیرید؛ یک کلید را هم‌زمان روی دو سرور اجرا نکنید.
+
 ### ارتباط همتاها
 
 Nethermind با رکوردهای عمومی `enode` و discv4/discv5 همتاها را پیدا می‌کند. Prysm نیز از ENRهای bootstrap و discv5/libp2p استفاده می‌کند. WireGuard برای P2P الزامی نیست و peer ثابت فقط مسیر بازیابی است.
@@ -112,7 +177,7 @@ bash -n scripts/testnet/fund-wallet.sh
 
 حساب faucet را آفلاین بسازید و فقط آدرس عمومی آن را در genesis قرار دهید. با `scripts/testnet/render-network.py` و حداقل دو `enode` واقعی فایل `execution-nethermind.json` را بسازید. پس از شروع شبکه این فایل تغییرپذیر نیست. سپس از 256 کلید واقعی و بدون هم‌پوشانی، فایل `genesis.ssz` نهایی را بسازید.
 
-Genesis یک میلیارد SEP آزمایشی و بدون ارزش به faucet اختصاص می‌دهد. `scripts/testnet/fund-wallet.sh` مسیر پرداخت اپراتوری است و کلید خصوصی را در آرگومان قرار نمی‌دهد. faucet عمومی مشابه Sepolia هنوز به محدودیت آدرس/IP در PostgreSQL، جداسازی signer، کنترل سوءاستفاده، مانیتورینگ و آزمون نیاز دارد.
+Genesis به هر یک از چهار faucet اولیه 1,000,000 SEP آزمایشی و بدون ارزش اختصاص می‌دهد و مقدار پیش‌فرض هر درخواست پذیرفته‌شده 200 SEP است. `scripts/testnet/fund-wallet.sh` مسیر پرداخت اپراتوری است و کلید خصوصی را در آرگومان قرار نمی‌دهد. faucet عمومی مشابه Sepolia هنوز به محدودیت آدرس/IP در PostgreSQL، جداسازی signer، کنترل سوءاستفاده، مانیتورینگ و آزمون نیاز دارد.
 
 ### منابع و امنیت
 

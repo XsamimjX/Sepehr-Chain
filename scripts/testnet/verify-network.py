@@ -15,7 +15,10 @@ assert manifest["chainId"] == 7331
 assert manifest["monetaryValue"] is False and manifest["redeemable"] is False
 assert template["params"]["networkId"] == "0x1ca3"
 assert template["params"]["terminalTotalDifficulty"] == "0x8400"
-assert template["accounts"]["__FAUCET_ADDRESS__"]["balance"] == "0x33b2e3c9fd0803ce8000000"
+assert template["accounts"]["__FAUCET_ADDRESS__"]["balance"] == "0xd3c21bcecceda1000000"
+assert manifest["faucet"]["operators"] == 4
+assert manifest["faucet"]["supplyPerOperatorSep"] == "1000000"
+assert manifest["faucet"]["defaultGrantSep"] == "200"
 assert node["Init"]["DiscoveryEnabled"] is True
 assert node["Network"]["OnlyStaticPeers"] is False
 assert node["Discovery"]["UseDefaultDiscv5Bootnodes"] is False

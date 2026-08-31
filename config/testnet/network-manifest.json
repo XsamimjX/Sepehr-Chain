@@ -12,7 +12,7 @@
   "engineApi": { "host": "127.0.0.1", "port": 8551, "public": false },
   "validatorApiPublic": false,
   "validators": { "total": 256, "perHost": 64 },
-  "faucet": { "genesisSupplySep": "1000000000", "defaultGrantSep": "10", "privateKeyCommitted": false },
+  "faucet": { "operators": 4, "supplyPerOperatorSep": "1000000", "totalGenesisSupplySep": "4000000", "defaultGrantSep": "200", "privateKeyCommitted": false },
   "lowResourceProfile": { "cpu": 2, "memoryGb": 4, "diskGb": 30, "archive": false, "publicRpc": false, "experimental": true },
   "status": "template_requires_faucet_address_bootnodes_and_genesis_ssz"
 }

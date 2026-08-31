@@ -1,0 +1,77 @@
+{
+  "name": "Sepehr Persistent Testnet",
+  "dataDir": "sepehr-testnet",
+  "engine": {
+    "Ethash": {
+      "params": {
+        "fixedDifficulty": "0x400",
+        "minimumDifficulty": "0x400",
+        "difficultyBoundDivisor": "0x800",
+        "difficultyBombDisabled": "true",
+        "durationLimit": "0xd",
+        "difficultyBombDelays": { "0": "0x7FFFFFFFFFFFFFFF" },
+        "blockReward": { "0x0": "0xde0b6b3a7640000" },
+        "homesteadTransition": "0x0",
+        "eip100bTransition": "0x0"
+      }
+    }
+  },
+  "params": {
+    "gasLimitBoundDivisor": "0x400",
+    "accountStartNonce": "0x0",
+    "maximumExtraDataSize": "0x20",
+    "minGasLimit": "0x1388",
+    "networkId": "0x1ca3",
+    "forkBlock": "0x0",
+    "maxCodeSize": "0x6000",
+    "maxCodeSizeTransition": "0x0",
+    "eip150Transition": "0x0",
+    "eip155Transition": "0x0",
+    "eip160Transition": "0x0",
+    "eip161abcTransition": "0x0",
+    "eip161dTransition": "0x0",
+    "eip140Transition": "0x0",
+    "eip211Transition": "0x0",
+    "eip214Transition": "0x0",
+    "eip658Transition": "0x0",
+    "eip145Transition": "0x0",
+    "eip1014Transition": "0x0",
+    "eip1052Transition": "0x0",
+    "eip1283Transition": "0x0",
+    "eip152Transition": "0x0",
+    "eip1108Transition": "0x0",
+    "eip1344Transition": "0x0",
+    "eip1884Transition": "0x0",
+    "eip2028Transition": "0x0",
+    "eip2200Transition": "0x0",
+    "eip2565Transition": "0x0",
+    "eip2929Transition": "0x0",
+    "eip2930Transition": "0x0",
+    "eip1559Transition": "0x0",
+    "eip3198Transition": "0x0",
+    "eip3529Transition": "0x0",
+    "eip3541Transition": "0x0",
+    "terminalTotalDifficulty": "0x8400",
+    "mergeForkIdTransition": "0x0",
+    "mldsa65TransitionTimestamp": "0x0",
+    "depositContractAddress": "0xf2e246bb76df876cef8b38ae84130f4f55de395b"
+  },
+  "genesis": {
+    "seal": {
+      "ethereum": {
+        "nonce": "0x0000000000000000",
+        "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    "difficulty": "0x400",
+    "author": "0x0000000000000000000000000000000000000000",
+    "timestamp": "0x68b4f400",
+    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "extraData": "0x53657065687220546573746e6574",
+    "gasLimit": "0x1c9c380"
+  },
+  "nodes": [],
+  "accounts": {
+    "__FAUCET_ADDRESS__": { "balance": "0x33b2e3c9fd0803ce8000000" }
+  }
+}

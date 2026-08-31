@@ -1,0 +1,18 @@
+{
+  "network": "Sepehr Testnet",
+  "chainId": 7331,
+  "networkId": 7331,
+  "nativeCurrency": { "name": "Test SEP", "symbol": "SEP", "decimals": 18 },
+  "monetaryValue": false,
+  "redeemable": false,
+  "consensus": "experimental Ethash to EIP-3675 proof of stake",
+  "terminalTotalDifficulty": "0x8400",
+  "executionP2p": { "tcp": 30303, "udp": 30303, "discovery": true, "minimumBootnodes": 2 },
+  "consensusP2p": { "tcp": 13000, "udp": 12000, "discovery": true, "minimumBootstrapEnrs": 2 },
+  "engineApi": { "host": "127.0.0.1", "port": 8551, "public": false },
+  "validatorApiPublic": false,
+  "validators": { "total": 256, "perHost": 64 },
+  "faucet": { "genesisSupplySep": "1000000000", "defaultGrantSep": "10", "privateKeyCommitted": false },
+  "lowResourceProfile": { "cpu": 2, "memoryGb": 4, "diskGb": 30, "archive": false, "publicRpc": false, "experimental": true },
+  "status": "template_requires_faucet_address_bootnodes_and_genesis_ssz"
+}

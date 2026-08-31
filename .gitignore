@@ -2,3 +2,15 @@
 /work/
 /data/
 /artifacts/
+*.log
+*.pid
+**/__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+*.jwt
+/secrets/
+/validators/
+wallet-password.txt
+slashing-protection*.json
